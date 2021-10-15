@@ -1,2 +1,2 @@
-# Kh-a-m-t-m-
+#locked door
 lập trình nhúng ngôn ngữ C
