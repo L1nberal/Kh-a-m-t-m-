@@ -1,0 +1,278 @@
+#include<reg51.h>
+#include<string.h>
+
+#define lcdport P2
+
+//Gán chân cho màn hình LCD
+sbit rs=P3^4;//noi chân rs o lcd voi cong P3^4 
+sbit rw=P3^5;//noi chân rw o lcd voi cong P3^5
+sbit en=P3^6;//noi chân en o lcd voi cong P3^6
+
+//Gán chân cho motor
+sbit m1=P3^0;
+sbit m2=P3^1;
+
+//Gán chân cho bàn phím Keypad: r=row(hàng)
+sbit r1=P1^0;//hàng 1(A) noi voi P1^0
+sbit r2=P1^1;//hàng 2(B) noi voi P1^1
+sbit r3=P1^2;//hàng 3(C) noi voi P1^2
+sbit r4=P1^3;//hàng 4(D) noi voi P1^3
+
+//Gán chân cho bàn phím Keypad: c=column(cot)
+sbit c1=P1^4;//cot 3 noi voi P1^4
+sbit c2=P1^5;//cot 3 noi voi P1^5
+sbit c3=P1^6;//cot 3 noi voi P1^6
+
+//Gán chân cho loa
+sbit buzzer=P1^7;
+
+//Khai bao mang luu tru password
+char uid[]="15102021";//password
+char id[8];// so ki tu
+
+//Tao cac ham functions
+void lcdint(); // Khoi tao man hinh LCD
+void lcddis(char *); //Ham hien thi chuoi
+void delay(int); //ham Delay
+void lcdcmd(char); // Ham de ra lenh cho LCD
+void lcddata(char); // Ham de hien thi ki tu tren LCD
+char lcdkey(); // Ham chuc nang ban phim LCD
+char scan_key(); //Chuc nang nhap mot phim
+void door_open(); //chuc nang mo cua
+void door_close(); //chuc nang dong cua
+void sounder(); // chuc nang lam cho loa keu len
+
+void main(){
+	
+	int n;// khai bao bien nguyen n
+	char key; //khai bao 1 bien chuoi key
+	
+	P2=0x00; // Khai bao su dung cac cong Port 2 tu IC nhu la cac cong dau ra
+	P1=0xff; // Khai bao su dung cac cong Port 1 tu IC nhu la cac cong dau vao
+	
+	lcdint(); //Goi ham lcdint de khoi tao man hinh LCD
+	lcddis("Door is Locked!"); //hien thi cau door is locked!
+	//lcdcmd(0xc0);
+	//lcddis("Enter Passcode:");
+	delay(10); //tao khoang thoi gian trong
+	lcdcmd(0x01);  //Xoa, lam sach man hinh
+	lcdcmd(0x02);	
+	lcddis("Enter Password:"); //hien thi cau Enter Password
+	lcdcmd(0xc0);	// dua con tro ve vi tri dau tien cua hang thu 2
+
+	n=0;  
+	while(n<8){
+		key=scan_key(); 
+		id[n]=key;
+		//lcddata(key);
+		delay(100);// thoi gian cach nhau giua cac lan nhan phim
+		n++;
+	}
+	lcdcmd(0x01); // Xoa, lam sach man hinh
+	lcdcmd(0x02);	
+	
+	if(strcmp(uid,id)==0){  // kiem tra password
+		lcddis("Password Matched");
+		delay(200);  // thoi gian tre truoc khi mo cua
+		door_open(); //mo cua
+		delay(600);  // thoi gian tre truoc khi dong cua
+		door_close(); //dong cua
+		lcdcmd(0x01); //Xoa, lam sach man hinh
+		lcdcmd(0x02);
+	}
+	else{
+		lcddis("Wrong Password");
+		sounder();	//goi ham sounder de tao tieng cho loa
+		delay(200);  // thoi gian tre truoc khi in "PLease Try Again" ra man hinh
+		lcdcmd(0x01); //Xoa, lam sach man hinh
+		lcdcmd(0x02);
+		lcddis("Please Try Again");
+		delay(200);
+		lcdcmd(0x01); //Xoa, lam sach man hinh
+		lcdcmd(0x02);
+	}
+}
+
+//khoi tao chuc nang cho man hinh LCD
+void lcdint(){
+	lcdcmd(0x38);	//  khoi tao ma tran 8 bi t cho man hinh lcd
+	delay(2);
+	lcdcmd(0x01);	// Xoa, lam sach man hinh
+	delay(2);
+	lcdcmd(0x80);	// dua con tro ve vi tri dau tien cua hang 1
+	delay(2);
+	lcdcmd(0x0e);	
+	delay(2);
+}
+//ham tri hoan
+void delay(int x)
+{
+	int i,j;
+	for(i=0;i<x;i++)    // vong lap i lan
+	for(j=0;j<1275;j++);
+}
+//ham ra lenh cho man hinh LCD
+void lcdcmd(char A){
+	lcdport=A;	// character is conntected to Lcd port-1
+	rs=0;	//rs=0, lcd se xem thong tin truyen vao la du lieu
+	rw=0;	//rw=0, lcd ghi du lieu
+	en=1;  // khoi tao cong enable o thoi diem ban dau là o muc cao
+	delay(1);
+	en=0;	//chuyen xuong muc thap thì màn lcd moi tien hành ghi du lieu
+}
+//Lcd-Display String Function
+void lcddis(char *p){
+	while(*p!='\0'){
+		lcddata(*p);
+		delay(10);
+		p++;
+	}
+}
+
+//Lcd-Data Function to Send Char to Lcd Data port
+void lcddata(char value)
+{
+	lcdport=value; //Data pins are coonected to Lcd-PORT-2
+	rs=1;	// rs=1, man hinh lcd se xem du lieu la lenh
+	rw=0;	//rw=0, lcd ghi du lieu
+	en=1;	// khoi tao cong enable o thoi diem ban dau là o muc cao
+	delay(1);
+	en=0;	//chuyen xuong muc thap thì màn lcd moi tien hành ghi du lieu
+}
+
+// Hàm chuc nang loa
+void sounder(){
+	int i;
+	for(i=0;i<5;i++){   // lap 5 lan thi se keu "tach tach" 5 lan
+		buzzer=1; //loa keu
+		delay(100); // do tre
+		buzzer=0; //tat loa
+	}
+}
+//Ham de mo cua
+void door_open(){
+	lcdcmd(0x01); //Xóa man hinh
+	lcdcmd(0x02);
+	lcddis("Opening The Door..."); // Hien thi "Opening The Door"
+	m1=1; //Bat motor
+	m2=0; //Tat motor
+}
+//Ham de dong cua
+void door_close(){   
+	lcdcmd(0x01);  //Xóa man hinh
+	lcdcmd(0x02);
+	lcddis("Closing The Door...");  // Hien thi "Closing The Door"
+	m1=0;  //Tat cong m1
+	m2=0;	//Tat cong m2
+	delay(20);
+	//m1=1;
+	//m2=0;
+	m1=0; //Tat cong m1
+	m2=1; //mo cong m2 (de motor xoay nguoc lai
+	delay(500);
+	m1=0; //Tat cong m1
+	m2=0;//Tat cong m2
+}
+//Chuc nang quét mot key tu bàn phím
+char scan_key()
+{
+	char b='a';
+	while(b=='a'){
+		b=lcdkey();
+	}
+	return b;
+}
+char lcdkey(){	//Hàm lay thông tin tu bàn phím
+	c1=c2=c3=1; // Các cot o muc thap
+	r1=r2=r3=r4=0; // Các cot o muc thap (hoat dong cao)
+	
+//khi hàng 1 hoat dong và các hàng khác không hoat dong
+	r1=0;
+	r2=r3=r4=1;
+	//neu row=0 column=0 thì 1 duoc tra ve 
+	if(c1==0){
+		lcddata('*');
+		delay(2);
+		return '1';
+	}
+//neu row=0 column=1 thì 2 duoc tra ve 
+	if(c2==0){
+		lcddata('*');
+		delay(2);
+		return '2';
+	}
+	//neu row=0 column=2 thì 3 duoc tra ve 
+	if(c3==0){
+		lcddata('*');
+		delay(2);
+		return '3';
+	}
+	
+//khi hàng 2 hoat dong và các hàng khác không hoat dong
+	r2=0;
+	r1=r3=r4=1;
+		//neu row=1 column=0 thì 4 duoc tra ve 
+	if(c1==0){
+		lcddata('*');
+		delay(2);
+		return '4';
+	}
+	//neu row=1 column=1 thì 5 duoc tra ve 
+	if(c2==0){
+		lcddata('*');
+		delay(2);
+		return '5';
+	}
+	//neu row=1 column=2 thì 6 duoc tra ve 
+	if(c3==0){
+		lcddata('*');
+		delay(2);
+		return '6';
+	}
+	
+//khi hàng 3 hoat dong và các hàng khác không hoat dong
+	r3=0;
+	r1=r2=r4=1;
+	//neu row=2 column=0 thì 7 duoc tra ve 
+	if(c1==0){
+		lcddata('*');
+		delay(2);
+		return '7';
+	}
+	//neu row=2 column=1 thì 8 duoc tra ve 
+	if(c2==0){
+		lcddata('*');
+		delay(2);
+		return '8';
+	}
+		//neu row=2 column=2 thì 9 duoc tra ve 
+	if(c3==0){
+		lcddata('*');
+		delay(2);
+		return '9';
+	}
+	
+//khi hàng 4 hoat dong và các hàng khác không hoat dong
+	r4=0;
+	r1=r2=r3=1;
+		//neu row=3 column=0 thì * duoc tra ve 
+	if(c1==0){
+		lcddata('*');
+		delay(2);
+		return '*';
+	}
+		//neu row=3 column=1 thì 0 duoc tra ve 
+	if(c2==0){
+		lcddata('*');
+		delay(2);
+		return '0';
+	}
+			//neu row=3 column=2 thì # duoc tra ve 
+	if(c3==0){
+		lcddata('*');
+		delay(2);
+		return '#';
+	}
+	return 'a';
+}
+
